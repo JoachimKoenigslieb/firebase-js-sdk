@@ -106,9 +106,10 @@ export abstract class AppliableConstraint {
  * can then be passed to {@link (query:1)} to create a new query instance that
  * also contains this `QueryConstraint`.
  */
-export abstract class QueryConstraint extends AppliableConstraint {
+export abstract class QueryConstraint<AppModelType = DocumentData> extends AppliableConstraint {
   /** The type of this query constraint */
   abstract readonly type: QueryConstraintType;
+  readonly path!: keyof AppModelType;
 
   /**
    * Takes the provided {@link Query} and returns a copy of the {@link Query} with this
@@ -151,14 +152,14 @@ export function query<AppModelType, DbModelType extends DocumentData>(
  */
 export function query<AppModelType, DbModelType extends DocumentData>(
   query: Query<AppModelType, DbModelType>,
-  ...queryConstraints: QueryConstraint[]
+  ...queryConstraints: Array<QueryConstraint<AppModelType>>
 ): Query<AppModelType, DbModelType>;
 
 export function query<AppModelType, DbModelType extends DocumentData>(
   query: Query<AppModelType, DbModelType>,
-  queryConstraint: QueryCompositeFilterConstraint | QueryConstraint | undefined,
+  queryConstraint: QueryCompositeFilterConstraint | QueryConstraint<AppModelType>,
   ...additionalQueryConstraints: Array<
-    QueryConstraint | QueryNonFilterConstraint
+    QueryConstraint<AppModelType> | QueryNonFilterConstraint
   >
 ): Query<AppModelType, DbModelType> {
   let queryConstraints: AppliableConstraint[] = [];
@@ -184,10 +185,11 @@ export function query<AppModelType, DbModelType extends DocumentData>(
  * be passed to {@link (query:1)} to create a new query instance that also contains
  * this `QueryFieldFilterConstraint`.
  */
-export class QueryFieldFilterConstraint extends QueryConstraint {
+export class QueryFieldFilterConstraint<T extends string | number> extends QueryConstraint {
   /** The type of this query constraint */
   readonly type = 'where';
-
+  readonly path!: T;
+  
   /**
    * @internal
    */
@@ -203,7 +205,7 @@ export class QueryFieldFilterConstraint extends QueryConstraint {
     _field: InternalFieldPath,
     _op: Operator,
     _value: unknown
-  ): QueryFieldFilterConstraint {
+  ): QueryFieldFilterConstraint<never> {
     return new QueryFieldFilterConstraint(_field, _op, _value);
   }
 
@@ -264,11 +266,11 @@ export type WhereFilterOp =
  * @param value - The value for comparison
  * @returns The created {@link QueryFieldFilterConstraint}.
  */
-export function where(
-  fieldPath: string | FieldPath,
+export function where<T extends string | FieldPath>(
+  fieldPath: T,
   opStr: WhereFilterOp,
   value: unknown
-): QueryFieldFilterConstraint {
+): QueryFieldFilterConstraint<T extends string ? T : never> {
   const op = opStr as Operator;
   const field = fieldPathFromArgument('where', fieldPath);
   return QueryFieldFilterConstraint._create(field, op, value);
@@ -363,8 +365,8 @@ export type QueryNonFilterConstraint =
  * `QueryFilterConstraint` is a helper union type that represents
  * {@link QueryFieldFilterConstraint} and {@link QueryCompositeFilterConstraint}.
  */
-export type QueryFilterConstraint =
-  | QueryFieldFilterConstraint
+export type QueryFilterConstraint<T extends string | number= never> =
+  | QueryFieldFilterConstraint<T>
   | QueryCompositeFilterConstraint;
 
 /**
